@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Edit, Trash2, Calendar, Save, X, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -54,7 +53,17 @@ const PitchLibrary = () => {
         return;
       }
 
-      setPitches(data || []);
+      // Type cast the pitch_structure from Json to the expected type
+      const typedPitches = (data || []).map(pitch => ({
+        ...pitch,
+        pitch_structure: pitch.pitch_structure as {
+          title: string;
+          content: string;
+          imageDescription?: string;
+        }[]
+      }));
+
+      setPitches(typedPitches);
     } catch (error) {
       console.error('Error loading pitches:', error);
       toast({
