@@ -4,12 +4,14 @@ import { Mic, Square, RotateCcw, Sparkles, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface GeneratedPitch {
   oneLiner: string;
   pitchStructure: {
     title: string;
     content: string;
+    imageDescription?: string;
   }[];
 }
 
@@ -121,26 +123,21 @@ const CreatePitch = () => {
     setIsGenerating(true);
     
     try {
-      // Simulate AI generation - you'll replace this with actual OpenAI API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const mockPitch: GeneratedPitch = {
-        oneLiner: "AI-powered pitch optimization platform that transforms founder recordings into compelling investor presentations using Guy Kawasaki's proven framework.",
-        pitchStructure: [
-          { title: "Problem", content: "Founders struggle to articulate their vision effectively to investors" },
-          { title: "Solution", content: "AI-powered platform that transforms raw founder recordings into polished pitch decks" },
-          { title: "Market Size", content: "The global startup ecosystem with millions of entrepreneurs seeking funding" },
-          { title: "Business Model", content: "SaaS subscription model with freemium tier and premium features" },
-          { title: "Competition", content: "Traditional pitch deck templates and presentation software" },
-          { title: "Marketing", content: "Target startup accelerators, incubators, and entrepreneur communities" },
-          { title: "Team", content: "Experienced founders with deep understanding of both AI and startup needs" },
-          { title: "Projections", content: "Projected $1M ARR by year 2 with 70% gross margins" },
-          { title: "Funding", content: "Seeking $500K seed round to scale product and expand team" },
-          { title: "Timeline", content: "12-month roadmap to product-market fit and Series A readiness" }
-        ]
-      };
-      
-      setGeneratedPitch(mockPitch);
+      const { data, error } = await supabase.functions.invoke('generate-pitch', {
+        body: { transcript: transcript.trim() }
+      });
+
+      if (error) {
+        console.error('Error generating pitch:', error);
+        toast({
+          title: "Generation Error",
+          description: "Failed to generate pitch. Please try again.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      setGeneratedPitch(data);
       
       toast({
         title: "Pitch Generated!",
@@ -158,18 +155,39 @@ const CreatePitch = () => {
     }
   };
 
-  const savePitch = () => {
-    if (generatedPitch) {
-      // Save to localStorage for now - you'll replace this with Supabase
-      const savedPitches = JSON.parse(localStorage.getItem('pitches') || '[]');
-      const newPitch = {
-        id: Date.now(),
-        timestamp: new Date().toISOString(),
-        originalTranscript: transcript,
-        ...generatedPitch
-      };
-      savedPitches.push(newPitch);
-      localStorage.setItem('pitches', JSON.stringify(savedPitches));
+  const savePitch = async () => {
+    if (!generatedPitch) return;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast({
+          title: "Authentication Error",
+          description: "Please sign in to save your pitch.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const { error } = await supabase
+        .from('pitches')
+        .insert({
+          user_id: user.id,
+          original_transcript: transcript,
+          one_liner: generatedPitch.oneLiner,
+          pitch_structure: generatedPitch.pitchStructure
+        });
+
+      if (error) {
+        console.error('Error saving pitch:', error);
+        toast({
+          title: "Save Error",
+          description: "Failed to save pitch. Please try again.",
+          variant: "destructive"
+        });
+        return;
+      }
       
       toast({
         title: "Pitch Saved!",
@@ -179,6 +197,13 @@ const CreatePitch = () => {
       // Reset form
       setTranscript("");
       setGeneratedPitch(null);
+    } catch (error) {
+      console.error('Error saving pitch:', error);
+      toast({
+        title: "Save Error",
+        description: "Failed to save pitch. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -295,14 +320,17 @@ const CreatePitch = () => {
           {/* Pitch Structure */}
           <Card className="bg-gray-800 border-gray-700">
             <CardHeader>
-              <CardTitle className="text-white">Pitch Deck Structure</CardTitle>
+              <CardTitle className="text-white">Guy Kawasaki's 10-Slide Pitch Deck</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4">
                 {generatedPitch.pitchStructure.map((section, index) => (
                   <div key={index} className="bg-gray-900 p-4 rounded-lg border border-gray-600">
-                    <h4 className="text-purple-400 font-semibold mb-2">{section.title}</h4>
-                    <p className="text-gray-300">{section.content}</p>
+                    <h4 className="text-purple-400 font-semibold mb-2">{index + 1}. {section.title}</h4>
+                    <p className="text-gray-300 mb-2">{section.content}</p>
+                    {section.imageDescription && (
+                      <p className="text-gray-500 text-sm italic">💡 Image suggestion: {section.imageDescription}</p>
+                    )}
                   </div>
                 ))}
               </div>
