@@ -53,9 +53,12 @@ const PitchLibrary = () => {
         return;
       }
 
-      // Type cast the pitch_structure from Json to the expected type
-      const typedPitches = (data || []).map(pitch => ({
-        ...pitch,
+      // Properly transform the data to match SavedPitch interface
+      const transformedPitches: SavedPitch[] = (data || []).map(pitch => ({
+        id: pitch.id,
+        created_at: pitch.created_at,
+        original_transcript: pitch.original_transcript,
+        one_liner: pitch.one_liner,
         pitch_structure: pitch.pitch_structure as {
           title: string;
           content: string;
@@ -63,7 +66,7 @@ const PitchLibrary = () => {
         }[]
       }));
 
-      setPitches(typedPitches);
+      setPitches(transformedPitches);
     } catch (error) {
       console.error('Error loading pitches:', error);
       toast({
